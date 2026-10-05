@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   Button,
   Card,
@@ -56,6 +62,36 @@ const blankStep = (): Step => ({ id: uid(), text: "" });
 const AUTO_SCROLL_EDGE = 64;
 /** The fastest a drag scrolls, in px per frame. */
 const AUTO_SCROLL_SPEED = 14;
+
+/** How long, in ms, steps take to slide into place while reordering. */
+const STEP_SLIDE_MS = 180;
+
+const slideTransition = () =>
+  matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "none"
+    : `transform ${STEP_SLIDE_MS}ms ease`;
+
+/** Where a step's row sits in the viewport, ignoring any transform on it. */
+const restingTop = (list: HTMLElement, row: HTMLElement) =>
+  list.getBoundingClientRect().top + row.offsetTop;
+
+/**
+ * Pins the dragged step's row under the pointer, lifted. `offset` is how far
+ * below the row's top it was grabbed.
+ */
+function placeDragged(
+  list: HTMLElement,
+  id: string,
+  { offset, y }: { offset: number; y: number },
+) {
+  const row = list.querySelector<HTMLElement>(
+    `[data-step-id="${CSS.escape(id)}"]`,
+  );
+  if (!row) return;
+  const shift = y - offset - restingTop(list, row);
+  row.style.transition = "none";
+  row.style.transform = `translateY(${shift}px) scale(1.03)`;
+}
 
 /** The nearest ancestor that scrolls vertically, else the page. */
 function scrollParent(el: Element | null): Element {
@@ -161,14 +197,50 @@ export function RecipeEditor({
     setFocusStepId(step.id);
   };
 
-  const moveStep = (id: string, to: number) =>
+  /** Where the dragged step was grabbed, and where the pointer is now. */
+  const drag = useRef({ offset: 0, y: 0 });
+  /** Where each row was on screen before the last reorder, to slide from. */
+  const slideFrom = useRef<Map<string, number>>(undefined);
+
+  const moveStep = (id: string, to: number) => {
+    // Read the order off the DOM, since the drag listeners hold a stale
+    // `steps`.
+    const rows = [...(stepListRef.current?.children ?? [])] as HTMLElement[];
+    const from = rows.findIndex((row) => row.dataset.stepId === id);
+    if (from < 0 || from === to || to < 0 || to >= rows.length) return;
+    slideFrom.current = new Map(
+      rows.map((row) => [row.dataset.stepId!, row.getBoundingClientRect().top]),
+    );
     setSteps((list) => {
-      const from = list.findIndex((s) => s.id === id);
-      if (from === to || to < 0 || to >= list.length) return list;
       const next = list.filter((s) => s.id !== id);
       next.splice(to, 0, list[from]);
       return next;
     });
+  };
+
+  // After a reorder, slide the other steps from where they were to where they
+  // now sit, and keep the dragged one under the pointer. Runs before paint so
+  // nothing visibly jumps.
+  useLayoutEffect(() => {
+    const list = stepListRef.current;
+    const from = slideFrom.current;
+    slideFrom.current = undefined;
+    if (!list || !from) return;
+    for (const row of list.children as HTMLCollectionOf<HTMLElement>) {
+      const id = row.dataset.stepId!;
+      if (id === draggingStepId || !from.has(id)) continue;
+      const delta = from.get(id)! - restingTop(list, row);
+      if (!delta) continue;
+      row.style.transition = "none";
+      row.style.transform = `translateY(${delta}px)`;
+      row.getBoundingClientRect(); // Start the slide from there.
+      row.style.transition = slideTransition();
+      row.style.transform = "";
+    }
+    if (draggingStepId) placeDragged(list, draggingStepId, drag.current);
+    // Only when the order changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steps]);
 
   // On touch screens, holding the handle would otherwise start the browser's
   // own long-press gesture (text selection, callout menu) or a scroll, which
@@ -189,21 +261,21 @@ export function RecipeEditor({
   // since reordering can move the handle's node and drop the capture.
   useEffect(() => {
     if (!draggingStepId) return;
-    const scroller = scrollParent(stepListRef.current);
-    let pointerY: number | undefined;
+    const list = stepListRef.current;
+    if (!list) return;
+    const scroller = scrollParent(list);
     let frame = 0;
 
     const reorder = () => {
-      if (pointerY === undefined) return;
-      const y = pointerY;
-      const rows = [...(stepListRef.current?.children ?? [])] as HTMLElement[];
+      const { y } = drag.current;
+      const rows = [...list.children] as HTMLElement[];
       // The dragged step goes after every other step whose middle is above
-      // the pointer.
-      const to = rows.filter((row) => {
-        if (row.dataset.stepId === draggingStepId) return false;
-        const { top, height } = row.getBoundingClientRect();
-        return top + height / 2 < y;
-      }).length;
+      // the pointer. Resting positions, so steps mid-slide don't flicker.
+      const to = rows.filter(
+        (row) =>
+          row.dataset.stepId !== draggingStepId &&
+          restingTop(list, row) + row.offsetHeight / 2 < y,
+      ).length;
       moveStep(draggingStepId, to);
     };
 
@@ -211,7 +283,8 @@ export function RecipeEditor({
     // it, faster the closer the pointer is to the edge.
     const autoScroll = () => {
       frame = requestAnimationFrame(autoScroll);
-      if (pointerY === undefined) return;
+      placeDragged(list, draggingStepId, drag.current);
+      const pointerY = drag.current.y;
       const { top, bottom } =
         scroller === document.scrollingElement
           ? { top: 0, bottom: window.innerHeight }
@@ -234,7 +307,7 @@ export function RecipeEditor({
     };
 
     const move = (e: PointerEvent) => {
-      pointerY = e.clientY;
+      drag.current.y = e.clientY;
       reorder();
     };
     const end = () => setDraggingStepId(undefined);
@@ -244,6 +317,14 @@ export function RecipeEditor({
     window.addEventListener("pointercancel", end);
     return () => {
       cancelAnimationFrame(frame);
+      // Settle the dropped step into its slot.
+      const row = list.querySelector<HTMLElement>(
+        `[data-step-id="${CSS.escape(draggingStepId)}"]`,
+      );
+      if (row) {
+        row.style.transition = slideTransition();
+        row.style.transform = "";
+      }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
@@ -428,7 +509,7 @@ export function RecipeEditor({
         <h3 className="mt-4 text-label font-semibold text-ink-900">
           Instructions
         </h3>
-        <ol ref={stepListRef} className="mt-2 flex flex-col gap-2">
+        <ol ref={stepListRef} className="relative mt-2 flex flex-col gap-2">
           {steps.map((step, i) => (
             <li
               key={step.id}
@@ -448,6 +529,13 @@ export function RecipeEditor({
                   if (e.button !== 0) return;
                   // Keeps the drag from selecting text.
                   e.preventDefault();
+                  const list = stepListRef.current;
+                  const row = e.currentTarget.closest("li");
+                  if (!list || !row) return;
+                  drag.current = {
+                    offset: e.clientY - restingTop(list, row),
+                    y: e.clientY,
+                  };
                   if (e.pointerType === "touch") navigator.vibrate?.(10);
                   setDraggingStepId(step.id);
                 }}
