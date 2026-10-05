@@ -49,6 +49,44 @@ export function Modal({
     if (!open && el.open) el.close();
   }, [open]);
 
+  // When the on-screen keyboard opens, iOS shrinks only the visual viewport
+  // and pans it down to the focused field, leaving the top of a modal sized to
+  // the full screen out of reach. Keep the modal within the visible area.
+  useEffect(() => {
+    const el = ref.current;
+    const viewport = window.visualViewport;
+    if (!open || !el || !viewport) return;
+    const fit = () => {
+      const below =
+        document.documentElement.clientHeight -
+        viewport.offsetTop -
+        viewport.height;
+      el.style.setProperty("--visible-top", `${viewport.offsetTop}px`);
+      el.style.setProperty("--visible-bottom", `${Math.max(0, below)}px`);
+      el.style.setProperty("--visible-height", `${viewport.height}px`);
+    };
+    // The panel just got shorter, so bring the field being typed in back
+    // into view.
+    const resize = () => {
+      fit();
+      if (el.contains(document.activeElement))
+        document.activeElement?.scrollIntoView({ block: "nearest" });
+    };
+    fit();
+    viewport.addEventListener("resize", resize);
+    viewport.addEventListener("scroll", fit);
+    return () => {
+      viewport.removeEventListener("resize", resize);
+      viewport.removeEventListener("scroll", fit);
+      for (const name of [
+        "--visible-top",
+        "--visible-bottom",
+        "--visible-height",
+      ])
+        el.style.removeProperty(name);
+    };
+  }, [open]);
+
   return (
     <dialog
       ref={ref}
@@ -67,6 +105,8 @@ export function Modal({
       }}
       className={cn(
         "m-auto rounded-card border border-line bg-surface p-0 text-ink-800 shadow-popover",
+        // Centred in, and no taller than, the visible area (see above).
+        "top-[var(--visible-top,0px)] bottom-[var(--visible-bottom,0px)] max-h-[calc(var(--visible-height,100dvh)-2rem)]",
         className,
       )}
     >

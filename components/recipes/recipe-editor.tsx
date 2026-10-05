@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
   Button,
@@ -62,6 +63,10 @@ const blankStep = (): Step => ({ id: uid(), text: "" });
 const AUTO_SCROLL_EDGE = 64;
 /** The fastest a drag scrolls, in px per frame. */
 const AUTO_SCROLL_SPEED = 14;
+/** How long, in ms, a finger must rest on a step's handle to pick it up. */
+const HOLD_MS = 300;
+/** How far, in px, a finger can stray during the hold before it's let go. */
+const HOLD_SLOP = 8;
 
 /** How long, in ms, steps take to slide into place while reordering. */
 const STEP_SLIDE_MS = 180;
@@ -201,6 +206,61 @@ export function RecipeEditor({
   const drag = useRef({ offset: 0, y: 0 });
   /** Where each row was on screen before the last reorder, to slide from. */
   const slideFrom = useRef<Map<string, number>>(undefined);
+  /** Cancels a press on a handle that hasn't been held long enough yet. */
+  const cancelHold = useRef<() => void>(undefined);
+
+  useEffect(() => () => cancelHold.current?.(), []);
+
+  const pickUpStep = (id: string, row: HTMLElement, y: number) => {
+    const list = stepListRef.current;
+    if (!list) return;
+    drag.current = { offset: y - restingTop(list, row), y };
+    setDraggingStepId(id);
+  };
+
+  /**
+   * Picks a step up once a finger has rested on its handle for a moment, so
+   * a passing tap or swipe doesn't start a drag. A mouse picks it up at once.
+   */
+  const pressStepHandle = (
+    e: ReactPointerEvent<HTMLButtonElement>,
+    id: string,
+  ) => {
+    if (e.button !== 0) return;
+    // Keeps the drag from selecting text.
+    e.preventDefault();
+    const row = e.currentTarget.closest("li");
+    if (!row) return;
+    if (e.pointerType === "mouse") return pickUpStep(id, row, e.clientY);
+
+    cancelHold.current?.();
+    const { pointerId, clientX: x0, clientY: y0 } = e;
+    let y = y0;
+    const track = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > HOLD_SLOP) cancel();
+      else y = ev.clientY;
+    };
+    const release = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) cancel();
+    };
+    const timer = setTimeout(() => {
+      cancel();
+      navigator.vibrate?.(10);
+      pickUpStep(id, row, y);
+    }, HOLD_MS);
+    const cancel = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", track);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      cancelHold.current = undefined;
+    };
+    window.addEventListener("pointermove", track);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    cancelHold.current = cancel;
+  };
 
   const moveStep = (id: string, to: number) => {
     // Read the order off the DOM, since the drag listeners hold a stale
@@ -525,20 +585,7 @@ export function RecipeEditor({
                 data-step-handle={step.id}
                 aria-label={`Reorder step ${i + 1}`}
                 title="Drag to reorder"
-                onPointerDown={(e) => {
-                  if (e.button !== 0) return;
-                  // Keeps the drag from selecting text.
-                  e.preventDefault();
-                  const list = stepListRef.current;
-                  const row = e.currentTarget.closest("li");
-                  if (!list || !row) return;
-                  drag.current = {
-                    offset: e.clientY - restingTop(list, row),
-                    y: e.clientY,
-                  };
-                  if (e.pointerType === "touch") navigator.vibrate?.(10);
-                  setDraggingStepId(step.id);
-                }}
+                onPointerDown={(e) => pressStepHandle(e, step.id)}
                 onContextMenu={(e) => e.preventDefault()}
                 onKeyDown={(e) => {
                   const to =
