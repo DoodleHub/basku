@@ -205,6 +205,7 @@ export function GroceryListView() {
               : "Delete"
         }
         tone={dialog === "delete" ? "danger" : "primary"}
+        dismissible={!(dialog === "new" && listName.trim())}
         onSubmit={submitDialog}
       >
         {dialog === "delete" ? (

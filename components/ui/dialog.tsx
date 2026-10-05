@@ -12,6 +12,8 @@ type DialogProps = {
   submitLabel: string;
   onSubmit: () => void;
   tone?: "primary" | "danger";
+  /** Whether a tap outside the panel closes it. Escape always does. */
+  dismissible?: boolean;
   children?: ReactNode;
 };
 
@@ -81,6 +83,7 @@ export function Dialog({
   submitLabel,
   onSubmit,
   tone = "primary",
+  dismissible,
   children,
 }: DialogProps) {
   const handleSubmit = (e: FormEvent) => {
@@ -92,6 +95,7 @@ export function Dialog({
     <Modal
       open={open}
       onClose={onClose}
+      dismissible={dismissible}
       className="w-[min(420px,calc(100vw-32px))]"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-6">
