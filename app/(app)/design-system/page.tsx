@@ -155,7 +155,7 @@ export default function DesignSystemPage() {
                   key={name}
                   className="overflow-hidden rounded-card border border-line bg-surface"
                 >
-                  <div className="h-14" style={{ background: hex }} />
+                  <div className="h-14" style={{ background: `var(--color-${name})` }} />
                   <div className="px-3 py-2">
                     <p className="text-label font-medium text-ink-900">
                       {name}

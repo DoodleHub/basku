@@ -71,9 +71,57 @@
     0 12px 32px -8px rgb(15 27 42 / 0.16), 0 2px 6px rgb(15 27 42 / 0.06);
 }
 
+/*
+ * Dark theme — follows the OS setting. Only token values change; components
+ * stay as-is. The brand scale runs light-ward toward 800 so that brand text
+ * (text-brand-700/800) stays legible on dark surfaces and primary button
+ * hover/active states brighten, and ink-inverse flips to a dark green so it
+ * remains the readable foreground on brand-600 / danger-600 fills.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Surfaces */
+    --color-canvas: #141513;
+    --color-surface: #1b1c1a;
+    --color-sunken: #222320;
+    --color-muted: #2a2b28;
+
+    /* Lines */
+    --color-line: #32332f;
+    --color-line-subtle: #262724;
+
+    /* Ink */
+    --color-ink-900: #f3f1ec;
+    --color-ink-800: #e3e1db;
+    --color-ink-600: #bebcb5;
+    --color-ink-500: #9d9b94;
+    --color-ink-400: #7d7c76;
+    --color-ink-300: #575752;
+    --color-ink-inverse: #0e1a12;
+
+    /* Brand */
+    --color-brand-50: #1a2a1f;
+    --color-brand-100: #213a29;
+    --color-brand-200: #2e5239;
+    --color-brand-500: #5aa46e;
+    --color-brand-600: #6bb27f;
+    --color-brand-700: #82c294;
+    --color-brand-800: #9dd0aa;
+
+    /* Feedback */
+    --color-danger-600: #ef8a80;
+    --color-danger-50: #3a1f1c;
+
+    /* Elevation */
+    --shadow-control: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-popover:
+      0 12px 32px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.3);
+  }
+}
+
 @layer base {
   html {
-    color-scheme: light;
+    color-scheme: light dark;
   }
 
   body {
@@ -89,5 +137,11 @@
 
   dialog::backdrop {
     background: rgb(15 27 42 / 0.32);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    dialog::backdrop {
+      background: rgb(0 0 0 / 0.6);
+    }
   }
 }
