@@ -13,7 +13,7 @@ import {
   TrashIcon,
 } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { groceries, type GroceryItem } from "@/lib/store";
+import { groceries, sameName, useStore, type GroceryItem } from "@/lib/store";
 
 export function GroceryRow({
   listId,
@@ -27,6 +27,12 @@ export function GroceryRow({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity);
+  const siblings = useStore(
+    (s) => s.lists.find((l) => l.id === listId)?.items,
+  );
+  const duplicate = siblings?.some(
+    (i) => i.id !== item.id && sameName(i.name, name),
+  );
 
   const startEdit = () => {
     setName(item.name);
@@ -36,7 +42,7 @@ export function GroceryRow({
 
   const save = (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || duplicate) return;
     groceries.updateItem(listId, item.id, {
       name: name.trim(),
       quantity: quantity.trim(),
@@ -64,6 +70,8 @@ export function GroceryRow({
             <CompactInput
               autoFocus
               aria-label="Item name"
+              aria-invalid={duplicate || undefined}
+              title={duplicate ? "Already on this list" : undefined}
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
@@ -77,7 +85,7 @@ export function GroceryRow({
               onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
               className="min-w-0 flex-1"
             />
-            <Button type="submit" size="sm">
+            <Button type="submit" size="sm" disabled={duplicate}>
               Save
             </Button>
           </form>

@@ -199,6 +199,10 @@ const updateList = (listId: string, fn: (l: GroceryList) => GroceryList) =>
     lists: s.lists.map((l) => (l.id === listId ? fn(l) : l)),
   }));
 
+/** Item names match regardless of case and surrounding spaces. */
+export const sameName = (a: string, b: string) =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
+
 const setActive = (id: string) => {
   writeActiveList(id);
   setState((s) => ({ ...s, activeListId: id }));
@@ -246,7 +250,21 @@ export const groceries = {
     }
   },
 
+  /**
+   * Adds an item. If the name is already on the list, that item is
+   * un-checked (and given the new quantity, if one was typed) instead.
+   */
   addItem: (listId: string, name: string, quantity = "") => {
+    const existing = state.lists
+      .find((l) => l.id === listId)
+      ?.items.find((i) => sameName(i.name, name));
+    if (existing) {
+      groceries.updateItem(listId, existing.id, {
+        checked: false,
+        ...(quantity && { quantity }),
+      });
+      return;
+    }
     const item = { id: uid(), name, quantity, checked: false };
     updateList(listId, (l) => ({ ...l, items: [...l.items, item] }));
     persist("add the item", () =>
@@ -304,9 +322,7 @@ export const groceries = {
     updateList(listId, (l) => {
       const items = [...l.items];
       for (const ing of ingredients) {
-        const existing = items.findIndex(
-          (i) => i.name.trim().toLowerCase() === ing.name.trim().toLowerCase(),
-        );
+        const existing = items.findIndex((i) => sameName(i.name, ing.name));
         if (existing === -1) {
           const item = {
             id: uid(),
