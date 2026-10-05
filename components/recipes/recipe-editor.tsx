@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   Button,
   Card,
@@ -46,11 +46,17 @@ export function RecipeEditor({
   onCancel,
   onSaved,
   onDeleted,
+  bare = false,
+  onDirtyChange,
 }: {
   recipe?: Recipe;
   onCancel: () => void;
   onSaved: (id: string) => void;
   onDeleted?: () => void;
+  /** Render without the card frame, e.g. inside a modal. */
+  bare?: boolean;
+  /** Called when the form goes from empty to filled in, or back. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [name, setName] = useState(recipe?.name ?? "");
   const [minutes, setMinutes] = useState(String(recipe?.minutes ?? ""));
@@ -65,6 +71,21 @@ export function RecipeEditor({
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     recipe?.ingredients.length ? recipe.ingredients : [blankIngredient()],
   );
+
+  const dirty =
+    name !== (recipe?.name ?? "") ||
+    minutes !== String(recipe?.minutes ?? "") ||
+    image !== recipe?.image ||
+    instructions !== (recipe?.instructions ?? "") ||
+    ingredients.some((i) => {
+      const saved = recipe?.ingredients.find((x) => x.id === i.id);
+      return (
+        i.name !== (saved?.name ?? "") || i.quantity !== (saved?.quantity ?? "")
+      );
+    }) ||
+    ingredients.length !== (recipe?.ingredients.length || 1);
+
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   const updateIngredient = (id: string, patch: Partial<Ingredient>) =>
     setIngredients((list) =>
@@ -109,8 +130,10 @@ export function RecipeEditor({
     onDeleted?.();
   };
 
+  const Frame = bare ? "div" : Card;
+
   return (
-    <Card className="px-[22px] pt-[18px] pb-5">
+    <Frame className="px-[22px] pt-[18px] pb-5">
       <form onSubmit={save}>
         <h2 className="text-title text-ink-900">
           {recipe ? `Edit ${recipe.name}` : "New recipe"}
@@ -288,6 +311,6 @@ export function RecipeEditor({
           </div>
         </div>
       </form>
-    </Card>
+    </Frame>
   );
 }

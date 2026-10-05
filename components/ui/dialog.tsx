@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { Button, IconButton } from "./button";
 import { CloseIcon } from "./icons";
 
@@ -14,7 +15,65 @@ type DialogProps = {
   children?: ReactNode;
 };
 
-/** Modal form dialog built on the native <dialog> element. */
+type ModalProps = {
+  open: boolean;
+  onClose: () => void;
+  /** Whether a tap outside the panel closes it. Escape always does. */
+  dismissible?: boolean;
+  className?: string;
+  children?: ReactNode;
+};
+
+/**
+ * Modal shell built on the native <dialog> element. Closes on Escape and,
+ * when `dismissible`, on taps outside the panel.
+ */
+export function Modal({
+  open,
+  onClose,
+  dismissible = true,
+  className,
+  children,
+}: ModalProps) {
+  const ref = useRef<HTMLDialogElement>(null);
+  // Only dismiss when the press both starts and ends on the backdrop, so
+  // dragging out of an input (e.g. selecting text) doesn't close the dialog.
+  const pressedBackdrop = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    if (!open && el.open) el.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (
+          dismissible &&
+          pressedBackdrop.current &&
+          e.target === e.currentTarget
+        )
+          onClose();
+        pressedBackdrop.current = false;
+      }}
+      className={cn(
+        "m-auto rounded-card border border-line bg-surface p-0 text-ink-800 shadow-popover",
+        className,
+      )}
+    >
+      {children}
+    </dialog>
+  );
+}
+
+/** Modal form dialog. */
 export function Dialog({
   open,
   onClose,
@@ -24,25 +83,16 @@ export function Dialog({
   tone = "primary",
   children,
 }: DialogProps) {
-  const ref = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
-  }, [open]);
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     onSubmit();
   };
 
   return (
-    <dialog
-      ref={ref}
+    <Modal
+      open={open}
       onClose={onClose}
-      className="m-auto w-[min(420px,calc(100vw-32px))] rounded-card border border-line bg-surface p-0 text-ink-800 shadow-popover"
+      className="w-[min(420px,calc(100vw-32px))]"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-6">
         <div className="flex items-center justify-between">
@@ -69,6 +119,6 @@ export function Dialog({
           </Button>
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }

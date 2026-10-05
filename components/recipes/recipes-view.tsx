@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, PlusIcon, SearchInput } from "@/components/ui";
+import { Button, Modal, PlusIcon, SearchInput } from "@/components/ui";
 import { LoadState, SyncError } from "@/components/sync-status";
 import { useStore } from "@/lib/store";
 import { RecipeCard } from "./recipe-card";
@@ -17,6 +17,8 @@ export function RecipesView() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("view");
+  /** Whether the new-recipe form has input that an outside tap would lose. */
+  const [draftDirty, setDraftDirty] = useState(false);
 
   const q = query.trim().toLowerCase();
   const visible = q
@@ -27,9 +29,7 @@ export function RecipesView() {
       )
     : recipes;
 
-  const selected =
-    recipes.find((r) => r.id === selectedId) ??
-    (mode === "create" ? undefined : recipes[0]);
+  const selected = recipes.find((r) => r.id === selectedId) ?? recipes[0];
 
   if (status !== "ready") return <LoadState skeleton={<RecipesSkeleton />} />;
 
@@ -41,7 +41,10 @@ export function RecipesView() {
         <Button
           size="lg"
           icon={<PlusIcon size={22} />}
-          onClick={() => setMode("create")}
+          onClick={() => {
+            setDraftDirty(false);
+            setMode("create");
+          }}
         >
           Create recipe
         </Button>
@@ -61,7 +64,7 @@ export function RecipesView() {
             <li key={recipe.id}>
               <RecipeCard
                 recipe={recipe}
-                selected={mode !== "create" && recipe.id === selected?.id}
+                selected={recipe.id === selected?.id}
                 onSelect={() => {
                   setSelectedId(recipe.id);
                   setMode("view");
@@ -79,16 +82,7 @@ export function RecipesView() {
       )}
 
       <div className="mt-[15px]">
-        {mode === "create" ? (
-          <RecipeEditor
-            key="new"
-            onCancel={() => setMode("view")}
-            onSaved={(id) => {
-              setSelectedId(id);
-              setMode("view");
-            }}
-          />
-        ) : selected && mode === "edit" ? (
+        {selected && mode === "edit" ? (
           <RecipeEditor
             key={selected.id}
             recipe={selected}
@@ -107,6 +101,25 @@ export function RecipesView() {
           />
         ) : null}
       </div>
+
+      <Modal
+        open={mode === "create"}
+        onClose={() => setMode("view")}
+        dismissible={!draftDirty}
+        className="w-[min(640px,calc(100vw-32px))]"
+      >
+        {mode === "create" && (
+          <RecipeEditor
+            bare
+            onDirtyChange={setDraftDirty}
+            onCancel={() => setMode("view")}
+            onSaved={(id) => {
+              setSelectedId(id);
+              setMode("view");
+            }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
