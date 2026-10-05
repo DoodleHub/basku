@@ -14,6 +14,7 @@ import {
   Textarea,
   TrashIcon,
 } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { recipes, uid, type Ingredient, type Recipe } from "@/lib/store";
 import { RecipeImage } from "./recipe-card";
 
@@ -57,6 +58,8 @@ export function RecipeEditor({
   /** A newly chosen photo, uploaded on save. `image` holds its preview URL. */
   const [photo, setPhoto] = useState<Blob>();
   const [saving, setSaving] = useState(false);
+  /** True while a chosen photo is being downscaled. */
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
   const [instructions, setInstructions] = useState(recipe?.instructions ?? "");
   const [ingredients, setIngredients] = useState<Ingredient[]>(
@@ -117,19 +120,38 @@ export function RecipeEditor({
           <div className="flex flex-col gap-2">
             <RecipeImage recipe={{ name, image }} />
             <div className="flex gap-2">
-              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-control border border-line text-label font-medium text-ink-800 transition-colors hover:bg-muted has-focus-visible:outline-2 has-focus-visible:outline-brand-500">
+              <label
+                className={cn(
+                  "inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-control border border-line text-label font-medium text-ink-800 transition-colors hover:bg-muted has-focus-visible:outline-2 has-focus-visible:outline-brand-500",
+                  preparing && "pointer-events-none opacity-50",
+                )}
+              >
                 <ImageIcon size={16} />
-                {image ? "Change photo" : "Add photo"}
+                {preparing
+                  ? "Preparing…"
+                  : image
+                    ? "Change photo"
+                    : "Add photo"}
                 <input
                   type="file"
                   accept="image/*"
                   className="sr-only"
+                  disabled={preparing || saving}
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    const blob = await downscale(file);
-                    setPhoto(blob);
-                    setImage(URL.createObjectURL(blob));
+                    setPreparing(true);
+                    setError("");
+                    try {
+                      const blob = await downscale(file);
+                      setPhoto(blob);
+                      setImage(URL.createObjectURL(blob));
+                    } catch (err) {
+                      console.error(err);
+                      setError("Couldn't read that photo. Try another one.");
+                    } finally {
+                      setPreparing(false);
+                    }
                   }}
                 />
               </label>
@@ -256,7 +278,7 @@ export function RecipeEditor({
             <Button variant="ghost" size="sm" onClick={onCancel}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={saving}>
+            <Button type="submit" size="sm" disabled={saving || preparing}>
               {saving
                 ? "Saving…"
                 : recipe

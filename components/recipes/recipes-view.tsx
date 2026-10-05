@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { RecipeCard } from "./recipe-card";
 import { RecipeDetail } from "./recipe-detail";
 import { RecipeEditor } from "./recipe-editor";
+import { RecipesSkeleton } from "./recipes-skeleton";
 
 type Mode = "view" | "edit" | "create";
 
@@ -30,7 +31,7 @@ export function RecipesView() {
     recipes.find((r) => r.id === selectedId) ??
     (mode === "create" ? undefined : recipes[0]);
 
-  if (status !== "ready") return <LoadState />;
+  if (status !== "ready") return <LoadState skeleton={<RecipesSkeleton />} />;
 
   return (
     <div className="mx-auto w-full max-w-[766px] px-4 pt-[34px] pb-16">

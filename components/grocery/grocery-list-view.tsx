@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { LoadState, SyncError } from "@/components/sync-status";
 import { groceries, useStore } from "@/lib/store";
+import { GroceryListSkeleton } from "./grocery-list-skeleton";
 import { GroceryRow } from "./grocery-row";
 
 type DialogKind = "new" | "rename" | "delete" | null;
@@ -37,7 +38,7 @@ export function GroceryListView() {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [listName, setListName] = useState("");
 
-  if (!list) return <LoadState />;
+  if (!list) return <LoadState skeleton={<GroceryListSkeleton />} />;
 
   const checkedCount = list.items.filter((i) => i.checked).length;
 

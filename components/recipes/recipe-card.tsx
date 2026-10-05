@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
-import { ClockIcon, LeafIcon } from "@/components/ui";
+import { useState } from "react";
+import { ClockIcon, LeafIcon, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type { Recipe } from "@/lib/store";
 
@@ -44,18 +47,34 @@ export function RecipeImage({
   return (
     <div className="relative aspect-[1.8] overflow-hidden rounded-control bg-brand-50">
       {recipe.image ? (
-        <Image
-          src={recipe.image}
-          alt={recipe.name}
-          fill
-          sizes="(min-width: 640px) 240px, 100vw"
-          className="object-cover"
-        />
+        <Photo key={recipe.image} src={recipe.image} alt={recipe.name} />
       ) : (
         <div className="flex h-full items-center justify-center text-brand-200">
           <LeafIcon size={40} />
         </div>
       )}
     </div>
+  );
+}
+
+/** Shows a shimmer until the photo has loaded, then fades it in. */
+function Photo({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && <Skeleton className="absolute inset-0 rounded-none" />}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes="(min-width: 640px) 240px, 100vw"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={cn(
+          "object-cover transition-opacity duration-300",
+          !loaded && "opacity-0",
+        )}
+      />
+    </>
   );
 }

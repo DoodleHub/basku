@@ -72,12 +72,14 @@ export function MenuItem({
   onSelect,
   tone = "default",
   selected,
+  disabled,
   icon,
   children,
 }: {
   onSelect: () => void;
   tone?: "default" | "danger";
   selected?: boolean;
+  disabled?: boolean;
   icon?: ReactNode;
   children: ReactNode;
 }) {
@@ -86,8 +88,9 @@ export function MenuItem({
       type="button"
       role="menuitem"
       onClick={onSelect}
+      disabled={disabled}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-label transition-colors",
+        "flex w-full cursor-pointer items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-label transition-colors disabled:pointer-events-none disabled:opacity-50",
         tone === "danger"
           ? "text-danger-600 hover:bg-danger-50"
           : "text-ink-800 hover:bg-muted",

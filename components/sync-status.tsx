@@ -1,10 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Button, CloseIcon, IconButton } from "@/components/ui";
 import { dismissError, reload, useStore } from "@/lib/store";
 
 /** Loading / failed-to-load placeholder shown before data arrives. */
-export function LoadState() {
+export function LoadState({ skeleton }: { skeleton: ReactNode }) {
   const status = useStore((s) => s.status);
   const error = useStore((s) => s.error);
 
@@ -18,11 +19,7 @@ export function LoadState() {
       </div>
     );
   }
-  return (
-    <p role="status" className="px-4 py-16 text-center text-label text-ink-500">
-      Loading…
-    </p>
-  );
+  return skeleton;
 }
 
 /** Banner for a save that failed after the data loaded. */
