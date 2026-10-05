@@ -170,6 +170,21 @@ export function RecipeEditor({
       return next;
     });
 
+  // On touch screens, holding the handle would otherwise start the browser's
+  // own long-press gesture (text selection, callout menu) or a scroll, which
+  // cancels the pointer before the drag gets going. React's touch listeners
+  // are passive and can't prevent that, hence a native one.
+  useEffect(() => {
+    const list = stepListRef.current;
+    if (!list) return;
+    const hold = (e: TouchEvent) => {
+      if ((e.target as Element).closest("[data-step-handle]"))
+        e.preventDefault();
+    };
+    list.addEventListener("touchstart", hold, { passive: false });
+    return () => list.removeEventListener("touchstart", hold);
+  }, []);
+
   // Listen on the window rather than capturing the pointer on the handle,
   // since reordering can move the handle's node and drop the capture.
   useEffect(() => {
@@ -433,8 +448,10 @@ export function RecipeEditor({
                   if (e.button !== 0) return;
                   // Keeps the drag from selecting text.
                   e.preventDefault();
+                  if (e.pointerType === "touch") navigator.vibrate?.(10);
                   setDraggingStepId(step.id);
                 }}
+                onContextMenu={(e) => e.preventDefault()}
                 onKeyDown={(e) => {
                   const to =
                     e.key === "ArrowUp"
@@ -455,7 +472,7 @@ export function RecipeEditor({
                   );
                 }}
                 className={cn(
-                  "-mr-1 flex h-10 w-5 shrink-0 touch-none items-center justify-center rounded-control text-ink-400 hover:text-ink-700",
+                  "relative -mr-1 flex h-10 w-5 shrink-0 touch-none items-center select-none [-webkit-touch-callout:none] justify-center rounded-control text-ink-400 hover:text-ink-700 after:absolute after:inset-y-0 after:-inset-x-2.5",
                   draggingStepId === step.id
                     ? "cursor-grabbing"
                     : "cursor-grab",
