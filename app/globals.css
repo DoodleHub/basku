@@ -119,6 +119,18 @@
   }
 }
 
+/*
+ * iOS Safari zooms into any focused field under 16px and doesn't zoom back
+ * out. Unlayered so it beats the text-control/text-label utilities.
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 16px);
+  }
+}
+
 @layer base {
   html {
     color-scheme: light dark;
