@@ -71,6 +71,9 @@ export function PasswordInput({
       />
       <button
         type="button"
+        // Keep focus on the input so tapping the toggle doesn't dismiss the
+        // on-screen keyboard.
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => setVisible((v) => !v)}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
