@@ -158,7 +158,7 @@ export function GroceryListView() {
           type="submit"
           label="Add item"
           variant="primary"
-          className="relative -ml-0.5 h-[52px] w-14"
+          className="relative -ml-0.5 h-[52px] w-14 rounded-l-none"
         >
           <PlusIcon size={26} strokeWidth={1.75} />
         </IconButton>
