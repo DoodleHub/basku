@@ -1,20 +1,31 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, Card, CartIcon, Divider, PencilIcon } from "@/components/ui";
+import {
+  Button,
+  CartIcon,
+  ClockIcon,
+  CloseIcon,
+  Divider,
+  IconButton,
+  PencilIcon,
+} from "@/components/ui";
 import {
   groceries,
   instructionSteps,
   useStore,
   type Recipe,
 } from "@/lib/store";
+import { RecipeImage } from "./recipe-card";
 
 export function RecipeDetail({
   recipe,
   onEdit,
+  onClose,
 }: {
   recipe: Recipe;
   onEdit: () => void;
+  onClose: () => void;
 }) {
   const list = useStore(
     (s) => s.lists.find((l) => l.id === s.activeListId) ?? s.lists[0],
@@ -35,21 +46,38 @@ export function RecipeDetail({
   };
 
   return (
-    <Card className="px-[22px] pt-[18px] pb-5">
+    <div className="px-[22px] pt-[18px] pb-5">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-title text-ink-900">{recipe.name}</h2>
-        <Button
-          variant="link"
-          size="sm"
-          icon={<PencilIcon size={16} />}
-          onClick={onEdit}
-          className="gap-2"
-        >
-          Edit
-        </Button>
+        <h2 className="min-w-0 text-title break-words text-ink-900">
+          {recipe.name}
+        </h2>
+        <div className="-mr-2 flex shrink-0 items-center gap-2">
+          <Button
+            variant="link"
+            size="sm"
+            icon={<PencilIcon size={16} />}
+            onClick={onEdit}
+            className="gap-2"
+          >
+            Edit
+          </Button>
+          <IconButton label="Close" onClick={onClose} className="size-9">
+            <CloseIcon size={18} />
+          </IconButton>
+        </div>
       </div>
+      <p className="mt-1 flex items-center gap-2 text-label text-ink-600">
+        <ClockIcon size={18} className="text-ink-800" />
+        {recipe.minutes} min
+      </p>
 
-      <h3 className="mt-3 text-label font-semibold text-ink-900">
+      {recipe.image && (
+        <div className="mt-3">
+          <RecipeImage recipe={recipe} sizes="600px" />
+        </div>
+      )}
+
+      <h3 className="mt-4 text-label font-semibold text-ink-900">
         Ingredients
       </h3>
       {recipe.ingredients.length > 0 ? (
@@ -102,6 +130,6 @@ export function RecipeDetail({
       ) : (
         <p className="mt-1 text-label text-ink-500">No instructions yet.</p>
       )}
-    </Card>
+    </div>
   );
 }

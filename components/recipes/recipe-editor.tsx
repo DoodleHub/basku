@@ -633,7 +633,10 @@ export function RecipeEditor({
                   // since a step is a single paragraph.
                   if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                     e.preventDefault();
-                    addStep(step.id);
+                    // Defer until the key event is done: moving focus
+                    // during it leaves iOS's keyboard reading the old
+                    // step's text, so the new step doesn't auto-capitalize.
+                    setTimeout(() => addStep(step.id));
                   }
                 }}
                 className="field-sizing-content min-h-10 min-w-0 flex-1 resize-none py-2"

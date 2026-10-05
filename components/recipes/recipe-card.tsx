@@ -8,22 +8,17 @@ import type { Recipe } from "@/lib/store";
 
 export function RecipeCard({
   recipe,
-  selected,
-  onSelect,
+  onOpen,
 }: {
   recipe: Recipe;
-  selected: boolean;
-  onSelect: () => void;
+  onOpen: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        "group w-full cursor-pointer rounded-card border-[1.5px] bg-surface p-1.5 text-left transition-colors",
-        selected ? "border-brand-600" : "border-line hover:border-brand-200",
-      )}
+      onClick={onOpen}
+      aria-haspopup="dialog"
+      className="group w-full cursor-pointer rounded-card border-[1.5px] border-line bg-surface p-1.5 text-left transition-colors hover:border-brand-200"
     >
       <RecipeImage recipe={recipe} />
       <div className="px-[11px] pt-[11px] pb-3">
@@ -41,13 +36,21 @@ export function RecipeCard({
 
 export function RecipeImage({
   recipe,
+  sizes = "(min-width: 640px) 240px, 100vw",
 }: {
   recipe: Pick<Recipe, "name" | "image">;
+  /** How wide the photo renders, for picking an image size. */
+  sizes?: string;
 }) {
   return (
     <div className="relative aspect-[1.8] overflow-hidden rounded-control bg-brand-50">
       {recipe.image ? (
-        <Photo key={recipe.image} src={recipe.image} alt={recipe.name} />
+        <Photo
+          key={recipe.image}
+          src={recipe.image}
+          alt={recipe.name}
+          sizes={sizes}
+        />
       ) : (
         <div className="flex h-full items-center justify-center text-brand-200">
           <LeafIcon size={40} />
@@ -58,7 +61,15 @@ export function RecipeImage({
 }
 
 /** Shows a shimmer until the photo has loaded, then fades it in. */
-function Photo({ src, alt }: { src: string; alt: string }) {
+function Photo({
+  src,
+  alt,
+  sizes,
+}: {
+  src: string;
+  alt: string;
+  sizes: string;
+}) {
   const [loaded, setLoaded] = useState(false);
   return (
     <>
@@ -67,7 +78,7 @@ function Photo({ src, alt }: { src: string; alt: string }) {
         src={src}
         alt={alt}
         fill
-        sizes="(min-width: 640px) 240px, 100vw"
+        sizes={sizes}
         onLoad={() => setLoaded(true)}
         onError={() => setLoaded(true)}
         className={cn(

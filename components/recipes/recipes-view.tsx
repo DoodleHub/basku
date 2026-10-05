@@ -9,15 +9,16 @@ import { RecipeDetail } from "./recipe-detail";
 import { RecipeEditor } from "./recipe-editor";
 import { RecipesSkeleton } from "./recipes-skeleton";
 
-type Mode = "view" | "edit" | "create";
+/** What the recipe modal shows; null while it's closed. */
+type Mode = "view" | "edit" | "create" | null;
 
 export function RecipesView() {
   const recipes = useStore((s) => s.recipes);
   const status = useStore((s) => s.status);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>("view");
-  /** Whether the new-recipe form has input that an outside tap would lose. */
+  const [mode, setMode] = useState<Mode>(null);
+  /** Whether the recipe form has input that an outside tap would lose. */
   const [draftDirty, setDraftDirty] = useState(false);
 
   const q = query.trim().toLowerCase();
@@ -29,7 +30,8 @@ export function RecipesView() {
       )
     : recipes;
 
-  const selected = recipes.find((r) => r.id === selectedId) ?? recipes[0];
+  const selected = recipes.find((r) => r.id === selectedId);
+  const close = () => setMode(null);
 
   if (status !== "ready") return <LoadState skeleton={<RecipesSkeleton />} />;
 
@@ -64,8 +66,7 @@ export function RecipesView() {
             <li key={recipe.id}>
               <RecipeCard
                 recipe={recipe}
-                selected={recipe.id === selected?.id}
-                onSelect={() => {
+                onOpen={() => {
                   setSelectedId(recipe.id);
                   setMode("view");
                 }}
@@ -81,44 +82,46 @@ export function RecipesView() {
         </p>
       )}
 
-      <div className="mt-[15px]">
-        {selected && mode === "edit" ? (
-          <RecipeEditor
-            key={selected.id}
-            recipe={selected}
-            onCancel={() => setMode("view")}
-            onSaved={() => setMode("view")}
-            onDeleted={() => {
-              setSelectedId(null);
-              setMode("view");
-            }}
-          />
-        ) : selected ? (
-          <RecipeDetail
-            key={selected.id}
-            recipe={selected}
-            onEdit={() => setMode("edit")}
-          />
-        ) : null}
-      </div>
-
       <Modal
-        open={mode === "create"}
-        onClose={() => setMode("view")}
-        dismissible={!draftDirty}
+        open={mode === "create" || (mode !== null && !!selected)}
+        onClose={close}
+        dismissible={mode === "view" || !draftDirty}
         className="w-[min(640px,calc(100vw-32px))]"
       >
-        {mode === "create" && (
+        {mode === "create" ? (
           <RecipeEditor
             bare
             onDirtyChange={setDraftDirty}
-            onCancel={() => setMode("view")}
+            onCancel={close}
             onSaved={(id) => {
               setSelectedId(id);
               setMode("view");
             }}
           />
-        )}
+        ) : selected && mode === "edit" ? (
+          <RecipeEditor
+            key={selected.id}
+            bare
+            recipe={selected}
+            onDirtyChange={setDraftDirty}
+            onCancel={() => setMode("view")}
+            onSaved={() => setMode("view")}
+            onDeleted={() => {
+              setSelectedId(null);
+              close();
+            }}
+          />
+        ) : selected && mode === "view" ? (
+          <RecipeDetail
+            key={selected.id}
+            recipe={selected}
+            onEdit={() => {
+              setDraftDirty(false);
+              setMode("edit");
+            }}
+            onClose={close}
+          />
+        ) : null}
       </Modal>
     </div>
   );

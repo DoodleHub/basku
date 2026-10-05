@@ -10,15 +10,15 @@ const CANVAS = "#faf8f4";
 
 const LEAF = "M28.5 3.5C16.4 3.3 7.6 9 7.1 19.6c-.1 2.4.4 4.4 1.3 5.8 10.4-.6 18.4-8.3 20.1-21.9Z";
 const VEIN = "M9.5 24c3.6-5.6 8.4-10.8 14.5-15";
-const STEM = "M8.4 25.4 4 29";
+const STEM = "M8.6 25.3 5 29.5";
 
 const leaf = (size) =>
   h(
     "svg",
     { width: size, height: size, viewBox: "0 0 32 32", fill: "none" },
-    h("path", { fill: CANVAS, d: LEAF }),
-    h("path", { stroke: BRAND, strokeWidth: 1.5, strokeLinecap: "round", d: VEIN }),
-    h("path", { stroke: CANVAS, strokeWidth: 2, strokeLinecap: "round", d: STEM }),
+    h("path", { fill: BRAND, d: LEAF }),
+    h("path", { stroke: CANVAS, strokeWidth: 1.5, strokeLinecap: "round", d: VEIN }),
+    h("path", { stroke: BRAND, strokeWidth: 2.2, strokeLinecap: "round", d: STEM }),
   );
 
 // leafRatio: share of the canvas the glyph fills. Maskable icons keep it
@@ -34,7 +34,7 @@ async function png(size, { leafRatio, radius }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: BRAND,
+          background: CANVAS,
           borderRadius: radius * size,
         },
       },
@@ -81,11 +81,11 @@ writeFileSync(
 writeFileSync(
   "app/icon.svg",
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="${BRAND}"/>
+  <rect width="32" height="32" rx="7" fill="${CANVAS}"/>
   <g transform="translate(3.5 3.5) scale(0.78)">
-    <path fill="${CANVAS}" d="${LEAF}"/>
-    <path fill="none" stroke="${BRAND}" stroke-width="1.5" stroke-linecap="round" d="${VEIN}"/>
-    <path fill="none" stroke="${CANVAS}" stroke-width="2" stroke-linecap="round" d="${STEM}"/>
+    <path fill="${BRAND}" d="${LEAF}"/>
+    <path fill="none" stroke="${CANVAS}" stroke-width="1.5" stroke-linecap="round" d="${VEIN}"/>
+    <path fill="none" stroke="${BRAND}" stroke-width="2.2" stroke-linecap="round" d="${STEM}"/>
   </g>
 </svg>
 `,
