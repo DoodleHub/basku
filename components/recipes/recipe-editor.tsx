@@ -327,15 +327,21 @@ export function RecipeEditor({
     let frame = 0;
 
     const reorder = () => {
-      const { y } = drag.current;
+      const { offset, y } = drag.current;
       const rows = [...list.children] as HTMLElement[];
-      // The dragged step goes after every other step whose middle is above
-      // the pointer. Resting positions, so steps mid-slide don't flicker.
-      const to = rows.filter(
-        (row) =>
-          row.dataset.stepId !== draggingStepId &&
-          restingTop(list, row) + row.offsetHeight / 2 < y,
-      ).length;
+      const at = rows.findIndex((row) => row.dataset.stepId === draggingStepId);
+      if (at < 0) return;
+      const top = y - offset;
+      const bottom = top + rows[at].offsetHeight;
+      // The dragged step swaps with another as soon as its leading edge
+      // reaches that step's middle: its bottom edge for steps below it, its
+      // top edge for steps above. Resting positions, so steps mid-slide don't
+      // flicker.
+      const to = rows.filter((row, i) => {
+        if (i === at) return false;
+        const middle = restingTop(list, row) + row.offsetHeight / 2;
+        return i < at ? middle <= top : middle < bottom;
+      }).length;
       moveStep(draggingStepId, to);
     };
 
