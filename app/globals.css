@@ -136,6 +136,16 @@
     color-scheme: light dark;
   }
 
+  /* Lock page scroll while a modal is open so scrolling inside it doesn't
+     chain to the page behind the backdrop. */
+  html:has(dialog[open]:modal) {
+    overflow: hidden;
+  }
+
+  dialog {
+    overscroll-behavior: contain;
+  }
+
   body {
     background: var(--color-canvas);
     color: var(--color-ink-800);
