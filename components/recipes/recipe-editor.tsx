@@ -444,59 +444,66 @@ export function RecipeEditor({
           {recipe ? `Edit ${recipe.name}` : "New recipe"}
         </h2>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-[200px_1fr]">
-          <div className="flex flex-col gap-2">
-            <RecipeImage recipe={{ name, image }} />
-            <div className="flex gap-2">
-              <label
-                className={cn(
-                  "inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-control border border-line text-label font-medium text-ink-800 transition-colors hover:bg-muted has-focus-visible:outline-2 has-focus-visible:outline-brand-500",
-                  preparing && "pointer-events-none opacity-50",
-                )}
-              >
-                <ImageIcon size={16} />
-                {preparing
-                  ? "Preparing…"
-                  : image
-                    ? "Change photo"
-                    : "Add photo"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={preparing || saving}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setPreparing(true);
-                    setError("");
-                    try {
-                      const blob = await downscale(file);
-                      setPhoto(blob);
-                      setImage(URL.createObjectURL(blob));
-                    } catch (err) {
-                      console.error(err);
-                      setError("Couldn't read that photo. Try another one.");
-                    } finally {
-                      setPreparing(false);
-                    }
-                  }}
-                />
-              </label>
-              {image && (
-                <IconButton
-                  label="Remove photo"
-                  className="size-9 border border-line"
-                  onClick={() => {
-                    setImage(undefined);
-                    setPhoto(undefined);
-                  }}
+        <div
+          className={cn(
+            "mt-4 grid gap-4",
+            recipe && "sm:grid-cols-[200px_1fr]",
+          )}
+        >
+          {recipe && (
+            <div className="flex flex-col gap-2">
+              <RecipeImage recipe={{ name, image }} />
+              <div className="flex gap-2">
+                <label
+                  className={cn(
+                    "inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-control border border-line text-label font-medium text-ink-800 transition-colors hover:bg-muted has-focus-visible:outline-2 has-focus-visible:outline-brand-500",
+                    preparing && "pointer-events-none opacity-50",
+                  )}
                 >
-                  <CloseIcon size={16} />
-                </IconButton>
-              )}
+                  <ImageIcon size={16} />
+                  {preparing
+                    ? "Preparing…"
+                    : image
+                      ? "Change photo"
+                      : "Add photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={preparing || saving}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setPreparing(true);
+                      setError("");
+                      try {
+                        const blob = await downscale(file);
+                        setPhoto(blob);
+                        setImage(URL.createObjectURL(blob));
+                      } catch (err) {
+                        console.error(err);
+                        setError("Couldn't read that photo. Try another one.");
+                      } finally {
+                        setPreparing(false);
+                      }
+                    }}
+                  />
+                </label>
+                {image && (
+                  <IconButton
+                    label="Remove photo"
+                    className="size-9 border border-line"
+                    onClick={() => {
+                      setImage(undefined);
+                      setPhoto(undefined);
+                    }}
+                  >
+                    <CloseIcon size={16} />
+                  </IconButton>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex flex-col gap-4">
             <Field label="Name" htmlFor="recipe-name">
@@ -691,11 +698,7 @@ export function RecipeEditor({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={saving || preparing}>
-              {saving
-                ? "Saving…"
-                : recipe
-                  ? "Save changes"
-                  : "Create recipe"}
+              {saving ? "Saving…" : recipe ? "Save changes" : "Create recipe"}
             </Button>
           </div>
         </div>
