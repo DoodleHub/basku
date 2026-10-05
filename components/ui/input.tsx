@@ -1,6 +1,12 @@
-import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
+"use client";
+
+import {
+  useState,
+  type InputHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from "react";
 import { cn } from "@/lib/cn";
-import { SearchIcon } from "./icons";
+import { EyeIcon, EyeOffIcon, SearchIcon } from "./icons";
 
 const field =
   "w-full rounded-field border border-line bg-surface text-control text-ink-900 placeholder:text-ink-500 transition-colors hover:border-ink-300 focus:border-brand-500 focus:outline-none focus:ring-3 focus:ring-brand-100";
@@ -45,6 +51,33 @@ export function SearchInput({
         className={cn(field, "h-[50px] pr-4 pl-[50px]")}
         {...props}
       />
+    </div>
+  );
+}
+
+/** Password input with a show/hide toggle. */
+export function PasswordInput({
+  className,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  const Toggle = visible ? EyeOffIcon : EyeIcon;
+  return (
+    <div className={cn("relative", className)}>
+      <input
+        type={visible ? "text" : "password"}
+        className={cn(field, "h-[52px] pr-[52px] pl-[18px]")}
+        {...props}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        className="absolute top-1/2 right-1.5 flex size-10 -translate-y-1/2 items-center justify-center rounded-control text-ink-500 transition-colors hover:text-ink-900 focus-visible:ring-3 focus-visible:ring-brand-100 focus-visible:outline-none"
+      >
+        <Toggle size={20} />
+      </button>
     </div>
   );
 }

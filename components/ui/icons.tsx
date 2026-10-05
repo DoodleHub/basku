@@ -104,6 +104,20 @@ export const UserIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const EyeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
+
+export const EyeOffIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10.6 5.1A9.7 9.7 0 0 1 12 5c6 0 9.5 7 9.5 7a16 16 0 0 1-2.2 3.1M6.6 6.6C3.9 8.3 2.5 12 2.5 12S6 19 12 19c1.9 0 3.6-.7 5-1.6" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
+  </Icon>
+);
+
 /** The basku leaf mark: filled leaf with a canvas-colored midrib and stem. */
 export const LeafIcon = ({ size = 32, ...props }: IconProps) => (
   <svg
