@@ -2,6 +2,7 @@
 
 import { logout } from "@/app/(auth)/actions";
 import { Avatar, Menu, MenuItem, MenuSeparator } from "@/components/ui";
+import { resetStore } from "@/lib/store";
 
 export function AccountMenu({ email }: { email?: string }) {
   return (
@@ -16,7 +17,14 @@ export function AccountMenu({ email }: { email?: string }) {
               <MenuSeparator />
             </>
           )}
-          <MenuItem onSelect={() => logout()}>Log out</MenuItem>
+          <MenuItem
+            onSelect={() => {
+              resetStore();
+              void logout();
+            }}
+          >
+            Log out
+          </MenuItem>
         </>
       )}
     </Menu>

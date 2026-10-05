@@ -16,6 +16,7 @@ import {
   PlusIcon,
   Button,
 } from "@/components/ui";
+import { LoadState, SyncError } from "@/components/sync-status";
 import { groceries, useStore } from "@/lib/store";
 import { GroceryRow } from "./grocery-row";
 
@@ -35,6 +36,8 @@ export function GroceryListView() {
   const [draft, setDraft] = useState("");
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [listName, setListName] = useState("");
+
+  if (!list) return <LoadState />;
 
   const checkedCount = list.items.filter((i) => i.checked).length;
 
@@ -61,6 +64,7 @@ export function GroceryListView() {
 
   return (
     <div className="mx-auto w-full max-w-[546px] px-4 pt-12 pb-16">
+      <SyncError />
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <h1 className="truncate text-display text-ink-900">{list.name}</h1>

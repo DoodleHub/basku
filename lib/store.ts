@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { Json } from "@/lib/supabase/database.types";
 
 export type GroceryItem = {
   id: string;
@@ -23,125 +25,170 @@ export type Recipe = {
 };
 
 export type State = {
+  status: "loading" | "ready" | "error";
+  /** Set when loading or saving to Supabase fails. */
+  error?: string;
   lists: GroceryList[];
   activeListId: string;
   recipes: Recipe[];
 };
 
-const STORAGE_KEY = "basku:v1";
+/** The active list is a per-device preference, so it stays in localStorage. */
+const ACTIVE_LIST_KEY = "basku:active-list";
+const IMAGE_BUCKET = "recipe-images";
 
 export const uid = () => crypto.randomUUID();
 
-const item = (
-  id: string,
-  name: string,
-  quantity: string,
-  checked = false,
-): GroceryItem => ({ id, name, quantity, checked });
-
-const ing = (id: string, name: string, quantity: string): Ingredient => ({
-  id,
-  name,
-  quantity,
-});
-
-const seed: State = {
-  activeListId: "weekly",
-  lists: [
-    {
-      id: "weekly",
-      name: "Weekly groceries",
-      items: [
-        item("i1", "Bananas", "1 bunch", true),
-        item("i2", "Avocados", "3"),
-        item("i3", "Eggs", "12"),
-        item("i4", "Oat milk", "1 carton"),
-        item("i5", "Baby spinach", "1 bag"),
-        item("i6", "Sourdough", "1 loaf"),
-      ],
-    },
-  ],
-  recipes: [
-    {
-      id: "r1",
-      name: "Lemon chicken",
-      minutes: 30,
-      image: "/recipes/lemon-chicken.jpg",
-      ingredients: [
-        ing("g1", "Chicken breast", "2 pieces"),
-        ing("g2", "Lemon", "1"),
-        ing("g3", "Olive oil", "2 tbsp"),
-      ],
-      instructions:
-        "Season the chicken, sear until golden, then finish with lemon.",
-    },
-    {
-      id: "r2",
-      name: "Creamy tomato pasta",
-      minutes: 20,
-      image: "/recipes/creamy-tomato-pasta.jpg",
-      ingredients: [
-        ing("g4", "Penne", "250 g"),
-        ing("g5", "Crushed tomatoes", "1 can"),
-        ing("g6", "Heavy cream", "100 ml"),
-        ing("g7", "Parmesan", "30 g"),
-        ing("g8", "Fresh basil", "1 handful"),
-      ],
-      instructions:
-        "Cook the penne. Simmer tomatoes with cream, toss with pasta, top with parmesan and basil.",
-    },
-    {
-      id: "r3",
-      name: "Avocado toast",
-      minutes: 10,
-      image: "/recipes/avocado-toast.jpg",
-      ingredients: [
-        ing("g9", "Sourdough", "2 slices"),
-        ing("g10", "Avocados", "1"),
-        ing("g11", "Microgreens", "1 handful"),
-        ing("g12", "Chili flakes", "1 pinch"),
-      ],
-      instructions:
-        "Toast the bread, mash the avocado with salt, spread and top with microgreens and chili.",
-    },
-  ],
+const initial: State = {
+  status: "loading",
+  lists: [],
+  activeListId: "",
+  recipes: [],
 };
 
-let state: State | null = null;
+let state = initial;
+let loadStarted = false;
 const listeners = new Set<() => void>();
 
-function load(): State {
-  if (state) return state;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    state = raw ? (JSON.parse(raw) as State) : seed;
-  } catch {
-    state = seed;
-  }
-  return state;
-}
+let client: ReturnType<typeof createClient> | null = null;
+const db = () => (client ??= createClient());
 
 export function setState(update: (s: State) => State) {
-  state = update(load());
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Storage full or unavailable — keep the in-memory copy.
-  }
+  state = update(state);
   listeners.forEach((l) => l());
 }
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
+  if (!loadStarted) {
+    loadStarted = true;
+    void reload();
+  }
   return () => listeners.delete(listener);
 }
 
 export function useStore<T>(select: (s: State) => T): T {
   return useSyncExternalStore(
     subscribe,
-    () => select(load()),
-    () => select(seed),
+    () => select(state),
+    () => select(initial),
   );
+}
+
+/** Drops cached data, e.g. on sign-out, so the next user starts fresh. */
+export function resetStore() {
+  loadStarted = false;
+  queue = Promise.resolve();
+  setState(() => initial);
+}
+
+/* ---------- Sync with Supabase ---------- */
+
+/**
+ * Writes run one at a time, in the order the UI made them, so a quick
+ * "add item, then tick it" can't reach the server out of order.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(task: () => PromiseLike<T>): Promise<T> {
+  const run = queue.then(task);
+  queue = run.catch(() => {});
+  return run;
+}
+
+/** Saves in the background. On failure, shows an error and reloads. */
+function persist(
+  label: string,
+  request: () => PromiseLike<{ error: { message: string } | null }>,
+) {
+  void enqueue(request).then(
+    ({ error }) => error && fail(label, error),
+    (error: unknown) => fail(label, error),
+  );
+}
+
+function fail(label: string, error: unknown) {
+  console.error(`Couldn't ${label}`, error);
+  setState((s) => ({ ...s, error: `Couldn't ${label}. Showing saved data.` }));
+  void reload();
+}
+
+export function dismissError() {
+  setState((s) => ({ ...s, error: undefined }));
+}
+
+function readActiveList() {
+  try {
+    return localStorage.getItem(ACTIVE_LIST_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeActiveList(id: string) {
+  try {
+    localStorage.setItem(ACTIVE_LIST_KEY, id);
+  } catch {
+    // Storage unavailable: the first list is used next time.
+  }
+}
+
+/** Replaces local state with what's in Supabase. */
+export function reload() {
+  return enqueue(async () => {
+    const sb = db();
+    const [listsRes, recipesRes] = await Promise.all([
+      sb
+        .from("grocery_lists")
+        .select("id, name, grocery_items(id, name, quantity, checked)")
+        .order("created_at")
+        .order("created_at", { referencedTable: "grocery_items" }),
+      sb
+        .from("recipes")
+        .select("id, name, minutes, image_url, instructions, ingredients")
+        .order("created_at"),
+    ]);
+
+    if (listsRes.error || recipesRes.error) {
+      console.error("Couldn't load data", listsRes.error ?? recipesRes.error);
+      setState((s) => ({
+        ...s,
+        status: s.status === "ready" ? "ready" : "error",
+        error: "Couldn't load your lists and recipes.",
+      }));
+      return;
+    }
+
+    const lists: GroceryList[] = listsRes.data.map(
+      ({ grocery_items, ...l }) => ({ ...l, items: grocery_items }),
+    );
+
+    // Every account has at least one list to add items to.
+    if (lists.length === 0) {
+      const list = { id: uid(), name: "Groceries" };
+      const { error } = await sb.from("grocery_lists").insert(list);
+      if (error) console.error("Couldn't create a starter list", error);
+      lists.push({ ...list, items: [] });
+    }
+
+    const recipes: Recipe[] = recipesRes.data.map((r) => ({
+      id: r.id,
+      name: r.name,
+      minutes: r.minutes,
+      image: r.image_url ?? undefined,
+      instructions: r.instructions,
+      ingredients: r.ingredients as Ingredient[],
+    }));
+
+    const saved = readActiveList();
+    setState((s) => ({
+      ...s,
+      status: "ready",
+      lists,
+      recipes,
+      activeListId: lists.some((l) => l.id === saved) ? saved : lists[0].id,
+    }));
+  });
 }
 
 /* ---------- Grocery lists ---------- */
@@ -152,63 +199,108 @@ const updateList = (listId: string, fn: (l: GroceryList) => GroceryList) =>
     lists: s.lists.map((l) => (l.id === listId ? fn(l) : l)),
   }));
 
+const setActive = (id: string) => {
+  writeActiveList(id);
+  setState((s) => ({ ...s, activeListId: id }));
+};
+
 export const groceries = {
-  setActive: (id: string) => setState((s) => ({ ...s, activeListId: id })),
+  setActive,
 
   createList: (name: string) => {
     const id = uid();
-    setState((s) => ({
-      ...s,
-      activeListId: id,
-      lists: [...s.lists, { id, name, items: [] }],
-    }));
+    setState((s) => ({ ...s, lists: [...s.lists, { id, name, items: [] }] }));
+    setActive(id);
+    persist("create the list", () =>
+      db().from("grocery_lists").insert({ id, name }),
+    );
   },
 
-  renameList: (id: string, name: string) =>
-    updateList(id, (l) => ({ ...l, name })),
+  renameList: (id: string, name: string) => {
+    updateList(id, (l) => ({ ...l, name }));
+    persist("rename the list", () =>
+      db().from("grocery_lists").update({ name }).eq("id", id),
+    );
+  },
 
-  deleteList: (id: string) =>
+  deleteList: (id: string) => {
+    let replacement: GroceryList | undefined;
     setState((s) => {
       const lists = s.lists.filter((l) => l.id !== id);
-      if (lists.length === 0)
-        lists.push({ id: uid(), name: "Groceries", items: [] });
-      return {
-        ...s,
-        lists,
-        activeListId: s.activeListId === id ? lists[0].id : s.activeListId,
-      };
-    }),
+      if (lists.length === 0) {
+        replacement = { id: uid(), name: "Groceries", items: [] };
+        lists.push(replacement);
+      }
+      return { ...s, lists };
+    });
+    if (state.activeListId === id) setActive(state.lists[0].id);
 
-  addItem: (listId: string, name: string, quantity = "") =>
-    updateList(listId, (l) => ({
-      ...l,
-      items: [...l.items, { id: uid(), name, quantity, checked: false }],
-    })),
+    persist("delete the list", () =>
+      db().from("grocery_lists").delete().eq("id", id),
+    );
+    if (replacement) {
+      const { id: newId, name } = replacement;
+      persist("create the list", () =>
+        db().from("grocery_lists").insert({ id: newId, name }),
+      );
+    }
+  },
 
-  updateItem: (listId: string, itemId: string, patch: Partial<GroceryItem>) =>
+  addItem: (listId: string, name: string, quantity = "") => {
+    const item = { id: uid(), name, quantity, checked: false };
+    updateList(listId, (l) => ({ ...l, items: [...l.items, item] }));
+    persist("add the item", () =>
+      db()
+        .from("grocery_items")
+        .insert({ ...item, list_id: listId }),
+    );
+  },
+
+  updateItem: (listId: string, itemId: string, patch: Partial<GroceryItem>) => {
+    const { name, quantity, checked } = patch;
     updateList(listId, (l) => ({
       ...l,
       items: l.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i)),
-    })),
+    }));
+    persist("update the item", () =>
+      db()
+        .from("grocery_items")
+        .update({ name, quantity, checked })
+        .eq("id", itemId),
+    );
+  },
 
-  removeItem: (listId: string, itemId: string) =>
+  removeItem: (listId: string, itemId: string) => {
     updateList(listId, (l) => ({
       ...l,
       items: l.items.filter((i) => i.id !== itemId),
-    })),
+    }));
+    persist("remove the item", () =>
+      db().from("grocery_items").delete().eq("id", itemId),
+    );
+  },
 
-  clearChecked: (listId: string) =>
+  clearChecked: (listId: string) => {
     updateList(listId, (l) => ({
       ...l,
       items: l.items.filter((i) => !i.checked),
-    })),
+    }));
+    persist("clear checked items", () =>
+      db()
+        .from("grocery_items")
+        .delete()
+        .eq("list_id", listId)
+        .eq("checked", true),
+    );
+  },
 
   /**
    * Adds ingredients to a list. Names already on the list are un-checked
    * instead of duplicated. Returns how many rows were added or restored.
    */
   addIngredients: (listId: string, ingredients: Ingredient[]) => {
-    let changed = 0;
+    const added: GroceryItem[] = [];
+    const restored: string[] = [];
     updateList(listId, (l) => {
       const items = [...l.items];
       for (const ing of ingredients) {
@@ -216,35 +308,103 @@ export const groceries = {
           (i) => i.name.trim().toLowerCase() === ing.name.trim().toLowerCase(),
         );
         if (existing === -1) {
-          items.push({
+          const item = {
             id: uid(),
             name: ing.name,
             quantity: ing.quantity,
             checked: false,
-          });
-          changed++;
+          };
+          items.push(item);
+          added.push(item);
         } else if (items[existing].checked) {
           items[existing] = { ...items[existing], checked: false };
-          changed++;
+          restored.push(items[existing].id);
         }
       }
       return { ...l, items };
     });
-    return changed;
+
+    if (added.length > 0) {
+      persist("add the ingredients", () =>
+        db()
+          .from("grocery_items")
+          .insert(added.map((i) => ({ ...i, list_id: listId }))),
+      );
+    }
+    if (restored.length > 0) {
+      persist("add the ingredients", () =>
+        db()
+          .from("grocery_items")
+          .update({ checked: false })
+          .in("id", restored),
+      );
+    }
+    return added.length + restored.length;
   },
 };
 
 /* ---------- Recipes ---------- */
 
+const publicImagePrefix = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
+
+/** Uploads a photo to the signed-in user's folder and returns its URL. */
+async function uploadPhoto(photo: Blob) {
+  const sb = db();
+  const { data: auth } = await sb.auth.getClaims();
+  if (!auth) throw new Error("Not signed in");
+  const path = `${auth.claims.sub}/${uid()}.jpg`;
+  const { error } = await sb.storage
+    .from(IMAGE_BUCKET)
+    .upload(path, photo, { contentType: photo.type || "image/jpeg" });
+  if (error) throw error;
+  return sb.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** Deletes a photo we uploaded. Other URLs (e.g. bundled images) are left alone. */
+function removePhoto(url: string | undefined) {
+  const at = url?.indexOf(publicImagePrefix) ?? -1;
+  if (!url || at === -1) return;
+  const path = decodeURIComponent(url.slice(at + publicImagePrefix.length));
+  persist("remove the old photo", () =>
+    db().storage.from(IMAGE_BUCKET).remove([path]),
+  );
+}
+
 export const recipes = {
-  save: (recipe: Recipe) =>
+  /** Saves a recipe; pass `photo` to upload a new image for it. */
+  save: async (recipe: Recipe, photo?: Blob) => {
+    if (photo) recipe = { ...recipe, image: await uploadPhoto(photo) };
+    const previous = state.recipes.find((r) => r.id === recipe.id);
+
     setState((s) => ({
       ...s,
-      recipes: s.recipes.some((r) => r.id === recipe.id)
+      recipes: previous
         ? s.recipes.map((r) => (r.id === recipe.id ? recipe : r))
         : [...s.recipes, recipe],
-    })),
+    }));
 
-  remove: (id: string) =>
-    setState((s) => ({ ...s, recipes: s.recipes.filter((r) => r.id !== id) })),
+    const { id, name, minutes, image, instructions, ingredients } = recipe;
+    persist("save the recipe", () =>
+      db()
+        .from("recipes")
+        .upsert({
+          id,
+          name,
+          minutes,
+          instructions,
+          image_url: image ?? null,
+          ingredients: ingredients as unknown as Json,
+        }),
+    );
+    if (previous?.image !== image) removePhoto(previous?.image);
+  },
+
+  remove: (id: string) => {
+    const recipe = state.recipes.find((r) => r.id === id);
+    setState((s) => ({ ...s, recipes: s.recipes.filter((r) => r.id !== id) }));
+    persist("delete the recipe", () =>
+      db().from("recipes").delete().eq("id", id),
+    );
+    removePhoto(recipe?.image);
+  },
 };

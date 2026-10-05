@@ -17,15 +17,21 @@ import {
 import { recipes, uid, type Ingredient, type Recipe } from "@/lib/store";
 import { RecipeImage } from "./recipe-card";
 
-/** Downscale an uploaded photo so it fits comfortably in localStorage. */
-async function toDataUrl(file: File, maxWidth = 720): Promise<string> {
+/** Downscale a chosen photo to a JPEG small enough for quick uploads. */
+async function downscale(file: File, maxWidth = 1200): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxWidth / bitmap.width);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.82);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Encoding failed"))),
+      "image/jpeg",
+      0.82,
+    ),
+  );
 }
 
 const blankIngredient = (): Ingredient => ({
@@ -48,6 +54,10 @@ export function RecipeEditor({
   const [name, setName] = useState(recipe?.name ?? "");
   const [minutes, setMinutes] = useState(String(recipe?.minutes ?? ""));
   const [image, setImage] = useState(recipe?.image);
+  /** A newly chosen photo, uploaded on save. `image` holds its preview URL. */
+  const [photo, setPhoto] = useState<Blob>();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [instructions, setInstructions] = useState(recipe?.instructions ?? "");
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     recipe?.ingredients.length ? recipe.ingredients : [blankIngredient()],
@@ -58,25 +68,36 @@ export function RecipeEditor({
       list.map((i) => (i.id === id ? { ...i, ...patch } : i)),
     );
 
-  const save = (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     const id = recipe?.id ?? uid();
-    recipes.save({
-      id,
-      name: name.trim(),
-      minutes: Math.max(0, parseInt(minutes, 10) || 0),
-      image,
-      instructions: instructions.trim(),
-      ingredients: ingredients
-        .filter((i) => i.name.trim())
-        .map((i) => ({
-          ...i,
-          name: i.name.trim(),
-          quantity: i.quantity.trim(),
-        })),
-    });
-    onSaved(id);
+    setSaving(true);
+    setError("");
+    try {
+      await recipes.save(
+        {
+          id,
+          name: name.trim(),
+          minutes: Math.min(10000, Math.max(0, parseInt(minutes, 10) || 0)),
+          image: photo ? undefined : image,
+          instructions: instructions.trim(),
+          ingredients: ingredients
+            .filter((i) => i.name.trim())
+            .map((i) => ({
+              ...i,
+              name: i.name.trim(),
+              quantity: i.quantity.trim(),
+            })),
+        },
+        photo,
+      );
+      onSaved(id);
+    } catch (err) {
+      console.error(err);
+      setError("Couldn't upload the photo. Try again.");
+      setSaving(false);
+    }
   };
 
   const remove = () => {
@@ -105,7 +126,10 @@ export function RecipeEditor({
                   className="sr-only"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (file) setImage(await toDataUrl(file));
+                    if (!file) return;
+                    const blob = await downscale(file);
+                    setPhoto(blob);
+                    setImage(URL.createObjectURL(blob));
                   }}
                 />
               </label>
@@ -113,7 +137,10 @@ export function RecipeEditor({
                 <IconButton
                   label="Remove photo"
                   className="size-9 border border-line"
-                  onClick={() => setImage(undefined)}
+                  onClick={() => {
+                    setImage(undefined);
+                    setPhoto(undefined);
+                  }}
                 >
                   <CloseIcon size={16} />
                 </IconButton>
@@ -208,6 +235,12 @@ export function RecipeEditor({
           />
         </Field>
 
+        {error && (
+          <p role="alert" className="mt-4 text-label text-danger-600">
+            {error}
+          </p>
+        )}
+
         <div className="mt-5 flex items-center gap-2">
           {recipe && (
             <Button
@@ -223,8 +256,12 @@ export function RecipeEditor({
             <Button variant="ghost" size="sm" onClick={onCancel}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">
-              {recipe ? "Save changes" : "Create recipe"}
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving
+                ? "Saving…"
+                : recipe
+                  ? "Save changes"
+                  : "Create recipe"}
             </Button>
           </div>
         </div>

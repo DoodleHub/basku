@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, PlusIcon, SearchInput } from "@/components/ui";
+import { LoadState, SyncError } from "@/components/sync-status";
 import { useStore } from "@/lib/store";
 import { RecipeCard } from "./recipe-card";
 import { RecipeDetail } from "./recipe-detail";
@@ -11,6 +12,7 @@ type Mode = "view" | "edit" | "create";
 
 export function RecipesView() {
   const recipes = useStore((s) => s.recipes);
+  const status = useStore((s) => s.status);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("view");
@@ -28,8 +30,11 @@ export function RecipesView() {
     recipes.find((r) => r.id === selectedId) ??
     (mode === "create" ? undefined : recipes[0]);
 
+  if (status !== "ready") return <LoadState />;
+
   return (
     <div className="mx-auto w-full max-w-[766px] px-4 pt-[34px] pb-16">
+      <SyncError />
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-display text-ink-900">My recipes</h1>
         <Button
