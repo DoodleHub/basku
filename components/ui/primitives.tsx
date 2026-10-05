@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 import { CheckIcon, LeafIcon, UserIcon } from "./icons";
 
@@ -51,13 +51,21 @@ export function Logo({ className }: { className?: string }) {
   );
 }
 
-export function Avatar({ label = "Account" }: { label?: string }) {
+export function Avatar({
+  label = "Account",
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label?: string }) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
-      className="flex size-10 cursor-pointer items-end justify-center overflow-hidden rounded-full border border-line bg-muted text-ink-400 transition-colors hover:text-ink-500"
+      className={cn(
+        "flex size-10 cursor-pointer items-end justify-center overflow-hidden rounded-full border border-line bg-muted text-ink-400 transition-colors hover:text-ink-500",
+        className,
+      )}
+      {...props}
     >
       <UserIcon size={24} className="mb-[7px]" />
     </button>

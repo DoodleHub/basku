@@ -1,12 +1,18 @@
 import Link from "next/link";
-import { Avatar, Logo, SegmentedNav } from "@/components/ui";
+import { AccountMenu } from "@/components/auth/account-menu";
+import { Logo, SegmentedNav } from "@/components/ui";
+import { createClient } from "@/lib/supabase/server";
 
 const nav = [
   { href: "/", label: "Grocery List" },
   { href: "/recipes", label: "Recipes" },
 ];
 
-export function AppHeader() {
+export async function AppHeader() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const email = data?.claims.email;
+
   return (
     <header className="border-b border-line bg-canvas">
       <div className="grid h-[78px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-7">
@@ -15,7 +21,7 @@ export function AppHeader() {
         </Link>
         <SegmentedNav items={nav} />
         <div className="justify-self-end">
-          <Avatar />
+          <AccountMenu email={email} />
         </div>
       </div>
     </header>
