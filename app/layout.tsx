@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree } from "next/font/google";
+import { ServiceWorker } from "@/components/service-worker";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -10,6 +11,12 @@ const figtree = Figtree({
 export const metadata: Metadata = {
   title: "basku",
   description: "Grocery lists and recipes, together.",
+  applicationName: "basku",
+  appleWebApp: {
+    capable: true,
+    title: "basku",
+    statusBarStyle: "default",
+  },
 };
 
 // Matches --color-canvas in each theme so mobile browser chrome blends in.
@@ -25,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${figtree.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         {children}
+        <ServiceWorker />
       </body>
     </html>
   );

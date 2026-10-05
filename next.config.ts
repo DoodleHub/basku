@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
       ),
     ],
   },
+  async headers() {
+    return [
+      {
+        // Always revalidate the service worker so updates roll out promptly.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
