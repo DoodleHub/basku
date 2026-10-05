@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Button,
   Card,
@@ -8,6 +8,7 @@ import {
   CompactInput,
   Divider,
   Field,
+  GripIcon,
   IconButton,
   ImageIcon,
   PlusIcon,
@@ -51,6 +52,24 @@ type Step = { id: string; text: string };
 
 const blankStep = (): Step => ({ id: uid(), text: "" });
 
+/** How close to a scroll area's edge, in px, dragging a step scrolls it. */
+const AUTO_SCROLL_EDGE = 64;
+/** The fastest a drag scrolls, in px per frame. */
+const AUTO_SCROLL_SPEED = 14;
+
+/** The nearest ancestor that scrolls vertically, else the page. */
+function scrollParent(el: Element | null): Element {
+  for (let node = el?.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight
+    )
+      return node;
+  }
+  return document.scrollingElement ?? document.documentElement;
+}
+
 export function RecipeEditor({
   recipe,
   onCancel,
@@ -85,6 +104,11 @@ export function RecipeEditor({
   });
   /** The step to focus when it mounts, i.e. one just added. */
   const [focusStepId, setFocusStepId] = useState<string>();
+  /** The save/cancel row, scrolled into view when a step is appended. */
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const stepListRef = useRef<HTMLOListElement>(null);
+  /** The step being dragged by its handle. */
+  const [draggingStepId, setDraggingStepId] = useState<string>();
   /** Steps can't contain newlines, since they're stored newline-separated. */
   const instructions = steps
     .map((s) => s.text.replace(/\s*\n\s*/g, " ").trim())
@@ -109,6 +133,15 @@ export function RecipeEditor({
 
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
+  // Focusing a new last step only scrolls the step itself into view; bring
+  // "Add step" and the save button below it into view too.
+  useEffect(() => {
+    if (focusStepId && steps.at(-1)?.id === focusStepId)
+      actionsRef.current?.scrollIntoView({ block: "nearest" });
+    // Only when a step is added, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusStepId]);
+
   const updateIngredient = (id: string, patch: Partial<Ingredient>) =>
     setIngredients((list) =>
       list.map((i) => (i.id === id ? { ...i, ...patch } : i)),
@@ -127,6 +160,80 @@ export function RecipeEditor({
     });
     setFocusStepId(step.id);
   };
+
+  const moveStep = (id: string, to: number) =>
+    setSteps((list) => {
+      const from = list.findIndex((s) => s.id === id);
+      if (from === to || to < 0 || to >= list.length) return list;
+      const next = list.filter((s) => s.id !== id);
+      next.splice(to, 0, list[from]);
+      return next;
+    });
+
+  // Listen on the window rather than capturing the pointer on the handle,
+  // since reordering can move the handle's node and drop the capture.
+  useEffect(() => {
+    if (!draggingStepId) return;
+    const scroller = scrollParent(stepListRef.current);
+    let pointerY: number | undefined;
+    let frame = 0;
+
+    const reorder = () => {
+      if (pointerY === undefined) return;
+      const y = pointerY;
+      const rows = [...(stepListRef.current?.children ?? [])] as HTMLElement[];
+      // The dragged step goes after every other step whose middle is above
+      // the pointer.
+      const to = rows.filter((row) => {
+        if (row.dataset.stepId === draggingStepId) return false;
+        const { top, height } = row.getBoundingClientRect();
+        return top + height / 2 < y;
+      }).length;
+      moveStep(draggingStepId, to);
+    };
+
+    // While the pointer is near the top or bottom of the scroll area, scroll
+    // it, faster the closer the pointer is to the edge.
+    const autoScroll = () => {
+      frame = requestAnimationFrame(autoScroll);
+      if (pointerY === undefined) return;
+      const { top, bottom } =
+        scroller === document.scrollingElement
+          ? { top: 0, bottom: window.innerHeight }
+          : scroller.getBoundingClientRect();
+      const edge = Math.min(AUTO_SCROLL_EDGE, (bottom - top) / 4);
+      const depth =
+        pointerY < top + edge
+          ? pointerY - (top + edge)
+          : pointerY > bottom - edge
+            ? pointerY - (bottom - edge)
+            : 0;
+      if (!depth) return;
+      const before = scroller.scrollTop;
+      scroller.scrollTop +=
+        Math.sign(depth) *
+        Math.min(1, Math.abs(depth) / edge) *
+        AUTO_SCROLL_SPEED;
+      // The rows moved under the pointer.
+      if (scroller.scrollTop !== before) reorder();
+    };
+
+    const move = (e: PointerEvent) => {
+      pointerY = e.clientY;
+      reorder();
+    };
+    const end = () => setDraggingStepId(undefined);
+    frame = requestAnimationFrame(autoScroll);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, [draggingStepId]);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -306,9 +413,56 @@ export function RecipeEditor({
         <h3 className="mt-4 text-label font-semibold text-ink-900">
           Instructions
         </h3>
-        <ol className="mt-2 flex flex-col gap-2">
+        <ol ref={stepListRef} className="mt-2 flex flex-col gap-2">
           {steps.map((step, i) => (
-            <li key={step.id} className="flex items-start gap-2">
+            <li
+              key={step.id}
+              data-step-id={step.id}
+              className={cn(
+                "flex items-start gap-2 rounded-field",
+                draggingStepId === step.id &&
+                  "relative z-10 bg-surface shadow-popover",
+              )}
+            >
+              <button
+                type="button"
+                data-step-handle={step.id}
+                aria-label={`Reorder step ${i + 1}`}
+                title="Drag to reorder"
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  // Keeps the drag from selecting text.
+                  e.preventDefault();
+                  setDraggingStepId(step.id);
+                }}
+                onKeyDown={(e) => {
+                  const to =
+                    e.key === "ArrowUp"
+                      ? i - 1
+                      : e.key === "ArrowDown"
+                        ? i + 1
+                        : -1;
+                  if (to < 0 || to >= steps.length) return;
+                  e.preventDefault();
+                  moveStep(step.id, to);
+                  // Moving the row can blur its handle.
+                  requestAnimationFrame(() =>
+                    stepListRef.current
+                      ?.querySelector<HTMLElement>(
+                        `[data-step-handle="${step.id}"]`,
+                      )
+                      ?.focus(),
+                  );
+                }}
+                className={cn(
+                  "-mr-1 flex h-10 w-5 shrink-0 touch-none items-center justify-center rounded-control text-ink-400 hover:text-ink-700",
+                  draggingStepId === step.id
+                    ? "cursor-grabbing"
+                    : "cursor-grab",
+                )}
+              >
+                <GripIcon size={16} />
+              </button>
               <span
                 aria-hidden
                 className="flex h-10 w-5 shrink-0 items-center justify-end text-label font-semibold text-ink-500"
@@ -360,7 +514,7 @@ export function RecipeEditor({
           </p>
         )}
 
-        <div className="mt-5 flex items-center gap-2">
+        <div ref={actionsRef} className="mt-5 flex items-center gap-2">
           {recipe && (
             <Button
               variant="danger"

@@ -47,6 +47,17 @@ export const MoreVerticalIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const GripIcon = (p: IconProps) => (
+  <Icon {...p} fill="currentColor" stroke="none">
+    <circle cx="9" cy="6" r="1.5" />
+    <circle cx="15" cy="6" r="1.5" />
+    <circle cx="9" cy="12" r="1.5" />
+    <circle cx="15" cy="12" r="1.5" />
+    <circle cx="9" cy="18" r="1.5" />
+    <circle cx="15" cy="18" r="1.5" />
+  </Icon>
+);
+
 export const SearchIcon = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="11" cy="11" r="7" />
