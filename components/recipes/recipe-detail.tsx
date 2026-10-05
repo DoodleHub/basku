@@ -2,7 +2,12 @@
 
 import { useRef, useState } from "react";
 import { Button, Card, CartIcon, Divider, PencilIcon } from "@/components/ui";
-import { groceries, useStore, type Recipe } from "@/lib/store";
+import {
+  groceries,
+  instructionSteps,
+  useStore,
+  type Recipe,
+} from "@/lib/store";
 
 export function RecipeDetail({
   recipe,
@@ -16,6 +21,7 @@ export function RecipeDetail({
   );
   const [status, setStatus] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const steps = instructionSteps(recipe.instructions);
 
   const addToList = () => {
     const added = groceries.addIngredients(list.id, recipe.ingredients);
@@ -85,9 +91,17 @@ export function RecipeDetail({
       <h3 className="mt-[15px] text-label font-semibold text-ink-900">
         Instructions
       </h3>
-      <p className="mt-1 text-label whitespace-pre-line text-ink-600">
-        {recipe.instructions || "No instructions yet."}
-      </p>
+      {steps.length > 0 ? (
+        <ol className="mt-1.5 flex list-decimal flex-col gap-1.5 pl-5 text-label text-ink-600 marker:font-semibold marker:text-ink-500">
+          {steps.map((step, i) => (
+            <li key={i} className="pl-1">
+              {step}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-1 text-label text-ink-500">No instructions yet.</p>
+      )}
     </Card>
   );
 }

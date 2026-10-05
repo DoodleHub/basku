@@ -15,7 +15,13 @@ import {
   TrashIcon,
 } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { recipes, uid, type Ingredient, type Recipe } from "@/lib/store";
+import {
+  instructionSteps,
+  recipes,
+  uid,
+  type Ingredient,
+  type Recipe,
+} from "@/lib/store";
 import { RecipeImage } from "./recipe-card";
 
 /** Downscale a chosen photo to a JPEG small enough for quick uploads. */
@@ -40,6 +46,10 @@ const blankIngredient = (): Ingredient => ({
   name: "",
   quantity: "",
 });
+
+type Step = { id: string; text: string };
+
+const blankStep = (): Step => ({ id: uid(), text: "" });
 
 export function RecipeEditor({
   recipe,
@@ -67,7 +77,19 @@ export function RecipeEditor({
   /** True while a chosen photo is being downscaled. */
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
-  const [instructions, setInstructions] = useState(recipe?.instructions ?? "");
+  const [steps, setSteps] = useState<Step[]>(() => {
+    const saved = instructionSteps(recipe?.instructions ?? "");
+    return saved.length
+      ? saved.map((text) => ({ id: uid(), text }))
+      : [blankStep()];
+  });
+  /** The step to focus when it mounts, i.e. one just added. */
+  const [focusStepId, setFocusStepId] = useState<string>();
+  /** Steps can't contain newlines, since they're stored newline-separated. */
+  const instructions = steps
+    .map((s) => s.text.replace(/\s*\n\s*/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     recipe?.ingredients.length ? recipe.ingredients : [blankIngredient()],
   );
@@ -76,7 +98,7 @@ export function RecipeEditor({
     name !== (recipe?.name ?? "") ||
     minutes !== String(recipe?.minutes ?? "") ||
     image !== recipe?.image ||
-    instructions !== (recipe?.instructions ?? "") ||
+    instructions !== instructionSteps(recipe?.instructions ?? "").join("\n") ||
     ingredients.some((i) => {
       const saved = recipe?.ingredients.find((x) => x.id === i.id);
       return (
@@ -92,6 +114,20 @@ export function RecipeEditor({
       list.map((i) => (i.id === id ? { ...i, ...patch } : i)),
     );
 
+  const updateStep = (id: string, text: string) =>
+    setSteps((list) => list.map((s) => (s.id === id ? { ...s, text } : s)));
+
+  const addStep = (afterId?: string) => {
+    const step = blankStep();
+    setSteps((list) => {
+      const at = afterId ? list.findIndex((s) => s.id === afterId) + 1 : 0;
+      return at > 0
+        ? [...list.slice(0, at), step, ...list.slice(at)]
+        : [...list, step];
+    });
+    setFocusStepId(step.id);
+  };
+
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -105,7 +141,7 @@ export function RecipeEditor({
           name: name.trim(),
           minutes: Math.min(10000, Math.max(0, parseInt(minutes, 10) || 0)),
           image: photo ? undefined : image,
-          instructions: instructions.trim(),
+          instructions,
           ingredients: ingredients
             .filter((i) => i.name.trim())
             .map((i) => ({
@@ -267,18 +303,56 @@ export function RecipeEditor({
 
         <Divider className="mt-5" />
 
-        <Field
-          label="Instructions"
-          htmlFor="recipe-instructions"
-          className="mt-4"
+        <h3 className="mt-4 text-label font-semibold text-ink-900">
+          Instructions
+        </h3>
+        <ol className="mt-2 flex flex-col gap-2">
+          {steps.map((step, i) => (
+            <li key={step.id} className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className="flex h-10 w-5 shrink-0 items-center justify-end text-label font-semibold text-ink-500"
+              >
+                {i + 1}.
+              </span>
+              <Textarea
+                aria-label={`Step ${i + 1}`}
+                placeholder={i === 0 ? "How do you start?" : "What's next?"}
+                rows={1}
+                value={step.text}
+                autoFocus={step.id === focusStepId}
+                onChange={(e) => updateStep(step.id, e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter starts a new step; Shift+Enter is swallowed too,
+                  // since a step is a single paragraph.
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    addStep(step.id);
+                  }
+                }}
+                className="field-sizing-content min-h-10 min-w-0 flex-1 resize-none py-2"
+              />
+              <IconButton
+                label={`Remove step ${i + 1}`}
+                className="size-10"
+                onClick={() =>
+                  setSteps((list) => list.filter((x) => x.id !== step.id))
+                }
+              >
+                <TrashIcon size={18} />
+              </IconButton>
+            </li>
+          ))}
+        </ol>
+        <Button
+          variant="link"
+          size="sm"
+          icon={<PlusIcon size={16} />}
+          onClick={() => addStep()}
+          className="mt-3 font-semibold"
         >
-          <Textarea
-            id="recipe-instructions"
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            placeholder="How do you make it?"
-          />
-        </Field>
+          Add step
+        </Button>
 
         {error && (
           <p role="alert" className="mt-4 text-label text-danger-600">

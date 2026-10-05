@@ -21,8 +21,16 @@ export type Recipe = {
   minutes: number;
   image?: string;
   ingredients: Ingredient[];
+  /** Steps separated by newlines; see `instructionSteps`. */
   instructions: string;
 };
+
+/** Split stored instructions into their non-empty steps. */
+export const instructionSteps = (instructions: string) =>
+  instructions
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 export type State = {
   status: "loading" | "ready" | "error";
