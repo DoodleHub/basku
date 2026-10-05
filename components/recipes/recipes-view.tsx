@@ -63,7 +63,7 @@ export function RecipesView() {
       {visible.length > 0 ? (
         <ul className="mt-4 grid grid-cols-1 gap-[15px] min-[480px]:grid-cols-2 sm:grid-cols-3">
           {visible.map((recipe) => (
-            <li key={recipe.id}>
+            <li key={recipe.id} className="flex">
               <RecipeCard
                 recipe={recipe}
                 onOpen={() => {

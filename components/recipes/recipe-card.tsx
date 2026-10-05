@@ -13,22 +13,30 @@ export function RecipeCard({
   recipe: Recipe;
   onOpen: () => void;
 }) {
+  const ingredients = recipe.ingredients.map((ing) => ing.name).filter(Boolean);
+  const count = recipe.ingredients.length;
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-haspopup="dialog"
-      className="group w-full cursor-pointer rounded-card border-[1.5px] border-line bg-surface p-1.5 text-left transition-colors hover:border-brand-200"
+      className="group flex h-full w-full cursor-pointer flex-col rounded-card border-[1.5px] border-line bg-surface px-4 pt-3.5 pb-3 text-left transition-colors hover:border-brand-200"
     >
-      <RecipeImage recipe={recipe} />
-      <div className="px-[11px] pt-[11px] pb-3">
-        <p className="truncate text-body font-semibold text-ink-900">
-          {recipe.name}
-        </p>
-        <p className="mt-1.5 flex items-center gap-2 text-label text-ink-600">
+      <p className="line-clamp-2 text-body font-semibold text-ink-900">
+        {recipe.name}
+      </p>
+      <p className="mt-1 line-clamp-2 text-label text-ink-500">
+        {ingredients.length > 0 ? ingredients.join(", ") : "No ingredients yet"}
+      </p>
+      <div className="mt-auto flex items-center gap-4 pt-3 text-label text-ink-600">
+        <span className="flex items-center gap-1.5">
           <ClockIcon size={18} className="text-ink-800" />
           {recipe.minutes} min
-        </p>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <LeafIcon size={18} className="text-ink-800" />
+          {count} {count === 1 ? "ingredient" : "ingredients"}
+        </span>
       </div>
     </button>
   );
